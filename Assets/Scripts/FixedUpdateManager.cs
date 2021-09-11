@@ -35,7 +35,8 @@ namespace WardGames.John.AuthoritativeMovement.Manager
         void Awake()
         {
             Physics.autoSimulation = false;
-            Physics2D.autoSyncTransforms = false;
+            //Physics2D.autoSyncTransforms = false;
+            Physics2D.simulationMode = SimulationMode2D.Script;
         }
 
         // Update is called once per frame

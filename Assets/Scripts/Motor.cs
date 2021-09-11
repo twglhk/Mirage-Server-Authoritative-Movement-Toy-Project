@@ -27,12 +27,29 @@ namespace WardGames.John.AuthoritativeMovement.Motors
         /// <summary>
         /// Stored client motor states.
         /// </summary>
-        private List<ClientMotorState> _clientMotorState = new List<ClientMotorState>();
+        private List<ClientMotorState> _clientMotorStates = new List<ClientMotorState>();
 
         /// <summary>
         /// Most current motor state received from the client.
         /// </summary>
-        private ClientMotorState _receivedClientMotorState;
+        private ClientMotorState? _receivedClientMotorState = null;
+
+        /// <summary>
+        /// Most current moto state received from the Server.
+        /// </summary>
+        private ServerMotorState? _receivedServerMototState = null;
+
+        /// <summary>
+        /// Number of predictions left that the server may use.
+        /// </summary>
+        private byte _remainingClientStatePredictions = 0;
+        #endregion
+
+        #region Const
+        /// <summary>
+        /// Maximum times the server can predict the client state.
+        /// </summary>
+        private const byte MAXIMUM_CLIENT_STATE_PREDICTIONS = 20;
         #endregion
 
         private void Awake()
@@ -76,7 +93,13 @@ namespace WardGames.John.AuthoritativeMovement.Motors
 
             if (Identity.HasAuthority)
             {
+                ProcessReceivedServerMotorState();  // Client Rollback stage
                 ClientSendInputs();
+            }
+
+            if (IsServer)
+            {
+                ProcessReceivedClientMotorState();
             }
         }
 
@@ -100,6 +123,87 @@ namespace WardGames.John.AuthoritativeMovement.Motors
         }
 
         /// <summary>
+        /// Processes the last received server motor state.
+        /// </summary>
+        [Client]
+        private void ProcessReceivedServerMotorState()
+        {
+            if (_receivedServerMototState == null)
+                return;
+
+            ServerMotorState serverState = _receivedServerMototState.Value;
+            _receivedServerMototState = null;
+
+            // Remove entries which have been handled by the server
+            int index = _clientMotorStates.FindIndex(x => x.FixedFrame == serverState.FixedFrame);
+            if (index != -1)
+                _clientMotorStates.RemoveRange(0, index + 1);
+
+            // Snap motor to server values.
+            transform.position = serverState.Position;
+            transform.rotation = serverState.Rotation;
+            _rigidbody.velocity = serverState.Velocity;
+            _rigidbody.angularVelocity = serverState.AngularVelocity;
+
+            // If this don't be called, it won't actually put transform at that position until the next fixed frame.
+            Physics.SyncTransforms();
+
+            foreach (ClientMotorState clientState in _clientMotorStates)
+            {
+                ProcessInputs(clientState);
+
+                // Simulates every rollback
+                Physics.Simulate(Time.fixedDeltaTime);
+            }
+        }
+
+        /// <summary>
+        /// Processes the last received client motor state.
+        /// </summary>
+        [Server]
+        private void ProcessReceivedClientMotorState()
+        {
+            if (_receivedClientMotorState == null || _remainingClientStatePredictions == 0)
+                return;
+
+            // True if this is the first time this input is being run.
+            // To send predicted input to clients only new received input helps saving bandwidth from server to client 
+            bool newInput = (_remainingClientStatePredictions == MAXIMUM_CLIENT_STATE_PREDICTIONS);
+            // Process input of last received motor state.
+            ProcessInputs(_receivedClientMotorState.Value);
+            // Remove from prediction count.
+            _remainingClientStatePredictions--;
+
+            if (newInput)
+            {
+                ServerMotorState responseState = new ServerMotorState
+                {
+                    FixedFrame = _receivedClientMotorState.Value.FixedFrame,
+                    Position = transform.position,
+                    Rotation = transform.rotation,
+                    Velocity = _rigidbody.velocity,
+                    AngularVelocity = _rigidbody.angularVelocity
+                };
+
+                // Send results back to client.
+                TargetServerStateUpdate(responseState);
+            }
+        }
+
+        /// <summary>
+        /// Processes input from a state.
+        /// </summary>
+        /// <param name="motorState"></param>
+        private void ProcessInputs(ClientMotorState motorState)
+        {
+            motorState.Horizontal = PreciseSign(motorState.Horizontal);
+            motorState.Forward = PreciseSign(motorState.Forward);
+
+            Vector3 forces = new Vector3(motorState.Horizontal, 0f, motorState.Forward) * _moveRate;
+            _rigidbody.AddForce(forces, ForceMode.Acceleration);
+        }
+
+        /// <summary>
         /// Sends inputs for the client.
         /// </summary>
         [Client]
@@ -115,9 +219,17 @@ namespace WardGames.John.AuthoritativeMovement.Motors
                 Forward = forward,
                 ActionCodes = 0
             };
-            _clientMotorState.Add(state);
+            _clientMotorStates.Add(state);
 
-            ProcessInputs(state);
+            /* Only send inputs if client only
+             * since sending inputs here otherwise would
+             * result in them running both on clientg and 
+             * server. This would result in inputs running
+             * twice in one frame.
+             */
+            if (IsClientOnly)
+                ProcessInputs(state);   
+
             ServerRpcSendInputs(state);
         }
 
@@ -129,23 +241,28 @@ namespace WardGames.John.AuthoritativeMovement.Motors
         private void ServerRpcSendInputs(ClientMotorState motorState)
         {
             // If state received is older than last received state then ignore it.
-            if (motorState.FixedFrame < _receivedClientMotorState.FixedFrame)
+            if (_receivedClientMotorState != null && motorState.FixedFrame < _receivedClientMotorState.Value.FixedFrame)
                 return;
 
+            _remainingClientStatePredictions = MAXIMUM_CLIENT_STATE_PREDICTIONS;
             _receivedClientMotorState = motorState;
         }
 
         /// <summary>
-        /// Processes input from a state.
+        /// Received on the owning client after the server processes ClientMotorState.
         /// </summary>
+        /// <param name="client"></param>
         /// <param name="motorState"></param>
-        private void ProcessInputs(ClientMotorState motorState)
+        [ClientRpc(target = RpcTarget.Owner)]
+        private void TargetServerStateUpdate(ServerMotorState motorState)
         {
-            motorState.Horizontal = PreciseSign(motorState.Horizontal);
-            motorState.Forward = PreciseSign(motorState.Forward);
+            // Exit if received state is older than most current.
+            // This situation will be occur when it use unreliable transport.
+            if (_receivedServerMototState != null && motorState.FixedFrame < _receivedServerMototState.Value.FixedFrame)
+                return;
 
-            Vector3 forces = new Vector3(motorState.Horizontal, 0f, motorState.Forward) * _moveRate;
-            _rigidbody.AddForce(forces, ForceMode.Impulse);
+            _receivedServerMototState = motorState;
+
         }
 
         /// <summary>
