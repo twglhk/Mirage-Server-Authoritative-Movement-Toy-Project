@@ -308,7 +308,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   Address: localhost
   Port: 7777
-  SocketLib: 0
+  SocketLib: 2
   BufferSize: 262144
 --- !u!1 &963194225
 GameObject:
