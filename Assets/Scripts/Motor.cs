@@ -63,13 +63,22 @@ namespace WardGames.John.AuthoritativeMovement.Motors
 
         }
 
+        private void OnEnable()
+        {
+            FixedUpdateManager.OnFixedUpdate += FixedUpdateManager_OnFixedUpdate;
+        }
+
+        private void OnDisable()
+        {
+            FixedUpdateManager.OnFixedUpdate -= FixedUpdateManager_OnFixedUpdate;
+        }
+
         /// <summary>
         /// Initialize this script for use. Should only be called once.
         /// </summary>
         private void FirstInitialize()
         {
             _rigidbody = GetComponent<Rigidbody>();
-            FixedUpdateManager.OnFixedUpdate += FixedUpdateManager_OnFixedUpdate;
         }
 
         /// <summary>
