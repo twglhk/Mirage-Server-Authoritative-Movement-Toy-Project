@@ -9,5 +9,6 @@ namespace WardGames.John.AuthoritativeMovement.States
         public Quaternion Rotation;
         public Vector3 Velocity;
         public Vector3 AngularVelocity;
+        public sbyte TimingStepChange;
     }
 }

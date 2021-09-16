@@ -30,26 +30,21 @@ namespace WardGames.John.AuthoritativeMovement.Motors
         private List<ClientMotorState> _clientMotorStates = new List<ClientMotorState>();
 
         /// <summary>
-        /// Most current motor state received from the client.
+        /// Motor states received from the client.
         /// </summary>
-        private ClientMotorState? _receivedClientMotorState = null;
+        private List<ClientMotorState> _receivedClientMotorStates = new List<ClientMotorState>();
 
         /// <summary>
         /// Most current moto state received from the Server.
         /// </summary>
         private ServerMotorState? _receivedServerMototState = null;
-
-        /// <summary>
-        /// Number of predictions left that the server may use.
-        /// </summary>
-        private byte _remainingClientStatePredictions = 0;
         #endregion
 
         #region Const
         /// <summary>
-        /// Maximum times the server can predict the client state.
+        /// Maximum number of entries that may be held within ReceivedClientMotorStates.
         /// </summary>
-        private const byte MAXIMUM_CLIENT_STATE_PREDICTIONS = 20;
+        private const int MAXIMUM_RECEIVED_CLIENT_MOTOR_STATES = 10;
         #endregion
 
         private void Awake()
@@ -172,30 +167,51 @@ namespace WardGames.John.AuthoritativeMovement.Motors
         [Server]
         private void ProcessReceivedClientMotorState()
         {
-            if (_receivedClientMotorState == null || _remainingClientStatePredictions == 0)
-                return;
+            sbyte timingStepChange = 0;
 
-            // True if this is the first time this input is being run.
-            // To send predicted input to clients only new received input helps saving bandwidth from server to client 
-            bool newInput = (_remainingClientStatePredictions == MAXIMUM_CLIENT_STATE_PREDICTIONS);
-            // Process input of last received motor state.
-            ProcessInputs(_receivedClientMotorState.Value);
-            // Remove from prediction count.
-            _remainingClientStatePredictions--;
+            /* If there are no states then set timing change step
+             * to a negative value, which will speed up the client 
+             * simulation. In result this will increase the chances
+             * the client will send a packet which will arrive by every
+             * fixed on the server. */
+            if (_receivedClientMotorStates.Count == 0)
+                timingStepChange = -1;
 
-            if (newInput)
+            /* Like subtracting a step, if there is more than one entry
+             * then the client is sending too fast. Send a positive step
+             * which will slow the clients send rate. */
+            else if (_receivedClientMotorStates.Count > 1)
+                timingStepChange = 1;
+
+            //If there is input to process.
+            if (_receivedClientMotorStates.Count > 0)
             {
+                //Assume using reliable trasport. (Packet will arrive in oreder)
+                ClientMotorState state = _receivedClientMotorStates[0];
+                _receivedClientMotorStates.RemoveAt(0);
+
+                //Process input of last received motor state.
+                ProcessInputs(state);
+
                 ServerMotorState responseState = new ServerMotorState
                 {
-                    FixedFrame = _receivedClientMotorState.Value.FixedFrame,
+                    FixedFrame = state.FixedFrame,
                     Position = transform.position,
                     Rotation = transform.rotation,
                     Velocity = _rigidbody.velocity,
-                    AngularVelocity = _rigidbody.angularVelocity
+                    AngularVelocity = _rigidbody.angularVelocity,
+                    TimingStepChange = timingStepChange
                 };
 
-                // Send results back to client.
+                //Send results back to owner.
                 TargetServerStateUpdate(responseState);
+            }
+
+            //If there is no input to process.
+            else if (timingStepChange != 0)
+            {
+                //Send timing step change to owner.
+                TargetChangeTimingStep(timingStepChange);
             }
         }
 
@@ -249,12 +265,9 @@ namespace WardGames.John.AuthoritativeMovement.Motors
         [ServerRpc]
         private void ServerRpcSendInputs(ClientMotorState motorState)
         {
-            // If state received is older than last received state then ignore it.
-            if (_receivedClientMotorState != null && motorState.FixedFrame < _receivedClientMotorState.Value.FixedFrame)
-                return;
-
-            _remainingClientStatePredictions = MAXIMUM_CLIENT_STATE_PREDICTIONS;
-            _receivedClientMotorState = motorState;
+            _receivedClientMotorStates.Add(motorState);
+            if (_receivedClientMotorStates.Count > MAXIMUM_RECEIVED_CLIENT_MOTOR_STATES)
+                _receivedClientMotorStates.RemoveAt(0);
         }
 
         /// <summary>
@@ -271,7 +284,16 @@ namespace WardGames.John.AuthoritativeMovement.Motors
                 return;
 
             _receivedServerMototState = motorState;
+        }
 
+        /// <summary>
+        /// Received on the owning client after server fails to process any inputs.
+        /// </summary>
+        /// <param name="steps"></param>
+        [ClientRpc(target = RpcTarget.Owner)]
+        private void TargetChangeTimingStep(sbyte steps)
+        {
+            //FixedUpdateManager.AddTiming(steps);
         }
 
         /// <summary>

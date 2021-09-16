@@ -20,8 +20,14 @@ namespace WardGames.John.AuthoritativeMovement.Manager
         /// Dispatched after a simulated fixed update occurs. Physics would have simulated prior to this event.
         /// </summary>
         public static event Action OnPostFixedUpdate;
-
-        public static uint FixedFrame = 0;
+        /// <summary>
+        /// Current fixed frame. Applied before any events are invoked.
+        /// </summary>
+        public static uint FixedFrame { get; private set; } = 0;
+        /// <summary>
+        /// Current FixedDeltaTime after timing adjustments.
+        /// </summary>
+        public static float AdjustedFixedDeltaTime { get; private set; }
         #endregion
 
         #region Private
@@ -29,15 +35,15 @@ namespace WardGames.John.AuthoritativeMovement.Manager
         /// Ticks applied from updates.
         /// </summary>
         private float _updateTicks = 0f;
+        /// <summary>
+        /// Range which the timing may reside within.
+        /// </summary>
+        private static float[] _timingRange;
+        /// <summary>
+        /// Value to change timing per step.
+        /// </summary>
+        private static float _timingPerStep;
         #endregion
-
-        // Start is called before the first frame update
-        void Awake()
-        {
-            Physics.autoSimulation = false;
-            //Physics2D.autoSyncTransforms = false;
-            Physics2D.simulationMode = SimulationMode2D.Script;
-        }
 
         // Update is called once per frame
         void Update()
@@ -54,6 +60,10 @@ namespace WardGames.John.AuthoritativeMovement.Manager
             GameObject go = new GameObject();
             go.AddComponent<FixedUpdateManager>();
             DontDestroyOnLoad(go);
+
+            Physics.autoSimulation = false;
+            //Physics2D.autoSyncTransforms = false;
+            Physics2D.simulationMode = SimulationMode2D.Script;
         }
 
         /// <summary>
