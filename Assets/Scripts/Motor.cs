@@ -293,7 +293,7 @@ namespace WardGames.John.AuthoritativeMovement.Motors
         [ClientRpc(target = RpcTarget.Owner)]
         private void TargetChangeTimingStep(sbyte steps)
         {
-            //FixedUpdateManager.AddTiming(steps);
+            FixedUpdateManager.AddTiming(steps);
         }
 
         /// <summary>
