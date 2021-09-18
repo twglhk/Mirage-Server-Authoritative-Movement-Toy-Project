@@ -136,6 +136,7 @@ namespace WardGames.John.AuthoritativeMovement.Motors
                 return;
 
             ServerMotorState serverState = _receivedServerMototState.Value;
+            FixedUpdateManager.AddTiming(serverState.TimingStepChange);
             _receivedServerMototState = null;
 
             // Remove entries which have been handled by the server
