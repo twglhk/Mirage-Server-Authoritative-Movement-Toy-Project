@@ -167,6 +167,10 @@ namespace WardGames.John.AuthoritativeMovement.Motors
         [Server]
         private void ProcessReceivedClientMotorState()
         {
+            //For Host client test
+            if (IsClient && HasAuthority)
+                return;
+
             sbyte timingStepChange = 0;
 
             /* If there are no states then set timing change step
@@ -246,15 +250,8 @@ namespace WardGames.John.AuthoritativeMovement.Motors
             };
             _clientMotorStates.Add(state);
 
-            /* Only send inputs if client only
-             * since sending inputs here otherwise would
-             * result in them running both on clientg and 
-             * server. This would result in inputs running
-             * twice in one frame.
-             */
-            if (IsClientOnly)
-                ProcessInputs(state);   
-
+            
+            ProcessInputs(state);   
             ServerRpcSendInputs(state);
         }
 
@@ -265,9 +262,14 @@ namespace WardGames.John.AuthoritativeMovement.Motors
         [ServerRpc]
         private void ServerRpcSendInputs(ClientMotorState motorState)
         {
+            //For Host client test
+            if (IsClient && HasAuthority)
+                return;
+
             _receivedClientMotorStates.Add(motorState);
             if (_receivedClientMotorStates.Count > MAXIMUM_RECEIVED_CLIENT_MOTOR_STATES)
                 _receivedClientMotorStates.RemoveAt(0);
+            
         }
 
         /// <summary>
