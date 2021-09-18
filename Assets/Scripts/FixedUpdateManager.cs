@@ -62,11 +62,11 @@ namespace WardGames.John.AuthoritativeMovement.Manager
         /// <summary>
         /// How quickly timing can recover to it's default value.
         /// </summary>
-        private const float TIMING_RECOVER_RATE = 0.0005f;
+        private const float TIMING_RECOVER_RATE = 0.0025f;
         /// <summary>
         /// Percentage of FixedDeltaTime to modify timing by when a step must occur.
         /// </summary>
-        public const float TIMING_STEP_PERCENT = 0.05f;
+        public const float TIMING_STEP_PERCENT = 0.015f;
         #endregion
 
         // Update is called once per frame
@@ -116,6 +116,7 @@ namespace WardGames.John.AuthoritativeMovement.Manager
         private void UpdateTicks()
         {
             _updateTicks += Time.deltaTime;
+            Debug.Log(AdjustedFixedDeltaTime);
 
             while (_updateTicks >= AdjustedFixedDeltaTime) // Update timing catches FixedUpdate timing
             {
@@ -131,8 +132,8 @@ namespace WardGames.John.AuthoritativeMovement.Manager
                 OnPreFixedUpdate?.Invoke();
                 OnFixedUpdate?.Invoke();        // == MonoBehavior's void FixedUpdate()
 
-                Physics2D.Simulate(Time.fixedDeltaTime);
-                Physics.Simulate(Time.fixedDeltaTime);
+                Physics2D.Simulate(AdjustedFixedDeltaTime);
+                Physics.Simulate(AdjustedFixedDeltaTime);
 
                 OnPostFixedUpdate?.Invoke();
             }
