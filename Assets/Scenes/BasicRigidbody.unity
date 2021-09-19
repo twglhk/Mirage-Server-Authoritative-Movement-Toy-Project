@@ -602,7 +602,7 @@ MonoBehaviour:
   syncMode: 0
   syncInterval: 0.1
   _serverFrame: 128
-  _clientFrame: 60
+  _clientFrame: 128
 --- !u!114 &1909511793
 MonoBehaviour:
   m_ObjectHideFlags: 0
