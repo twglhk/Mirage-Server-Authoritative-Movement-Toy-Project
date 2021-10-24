@@ -8,6 +8,12 @@ namespace WardGames.John.AuthoritativeMovement.Motors
 {
     public class NetworkRigidbodySmoother : NetworkBehaviour
     {
+        #region Serialized.
+        [Tooltip("How quickly to smooth to zero")]
+        [SerializeField]
+        private float _smoothRate = 30f;
+        #endregion
+
         #region Private.
         /// <summary>
         /// True if subscribed to FixedUpdateManager events.
@@ -16,19 +22,11 @@ namespace WardGames.John.AuthoritativeMovement.Motors
         /// <summary>
         /// Position before simulation is performed.
         /// </summary>
-        private Vector3 _prePosition;
+        private Vector3 _position;
         /// <summary>
         /// Rotation before simulation is performed.
         /// </summary>
-        private Quaternion _preRotation;
-        /// <summary>
-        /// Position after simulation is performed.
-        /// </summary>
-        private Vector3 _postPosition;
-        /// <summary>
-        /// Rotation after simulation is performed.
-        /// </summary>
-        private Quaternion _postRotation;
+        private Quaternion _rotation;
         /// <summary>
         /// Time passed since last fixed frame.
         /// </summary>
@@ -77,11 +75,18 @@ namespace WardGames.John.AuthoritativeMovement.Motors
         /// </summary>
         private void Smooth()
         {
-            _frameTimePassed += (Time.deltaTime * FRAME_TIME_MULTIPLIER);
-            float percent = Mathf.InverseLerp(0f, FixedUpdateManager.AdjustedFixedDeltaTime, _frameTimePassed);
+            float distance;
+            distance = Mathf.Max(0.01f, Vector3.Distance(transform.localPosition, Vector3.zero));
+            transform.localPosition = Vector3.MoveTowards(transform.localPosition, Vector3.zero, distance * _smoothRate * Time.deltaTime);
+            distance = Mathf.Max(1f, Quaternion.Angle(transform.localRotation, Quaternion.identity));
+            transform.localRotation = Quaternion.RotateTowards(transform.localRotation, Quaternion.identity, distance * _smoothRate * Time.deltaTime);
 
-            transform.position = Vector3.Lerp(_prePosition, transform.position, percent);
-            transform.rotation = Quaternion.Lerp(_preRotation, transform.rotation, percent);
+
+            //_frameTimePassed += (Time.deltaTime * FRAME_TIME_MULTIPLIER);
+            //float percent = Mathf.InverseLerp(0f, FixedUpdateManager.AdjustedFixedDeltaTime, _frameTimePassed);
+
+            //transform.position = Vector3.Lerp(_position, transform.position, percent);
+            //transform.rotation = Quaternion.Lerp(_rotation, transform.rotation, percent);
         }
 
         /// <summary>
@@ -108,17 +113,14 @@ namespace WardGames.John.AuthoritativeMovement.Motors
         private void FixedUpdateManager_OnPostFixedUpdate()
         {
             _frameTimePassed = 0f;
-            transform.position = _prePosition;
-            transform.rotation = _preRotation;
-
-            _postPosition = transform.position;
-            _postRotation = transform.rotation;
+            transform.localPosition = _position;
+            transform.localRotation = _rotation;
         }
 
         private void FixedUpdateManager_OnPreFixedUpdate()
         {
-            _prePosition = transform.position;
-            _preRotation = transform.rotation;
+            _position = transform.localPosition;
+            _rotation = transform.localRotation;
         }
     }
 }
