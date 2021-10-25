@@ -618,7 +618,7 @@ MonoBehaviour:
   sceneId: 593072717
   ServerObjectManager: {fileID: 1928412143}
   ClientObjectManager: {fileID: 1928412145}
-  m_AssetId: 
+  _prefabHash: 0
   _onStartServer:
     _event:
       m_PersistentCalls:
@@ -712,6 +712,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   EnablePeerMetrics: 0
+  MetricsSize: 10
   SocketFactory: {fileID: 863993904}
   DisconnectOnException: 1
   authenticator: {fileID: 1928412148}
@@ -744,6 +745,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   EnablePeerMetrics: 0
+  MetricsSize: 10
   MaxConnections: 4
   DisconnectOnException: 1
   Listening: 1
@@ -813,6 +815,9 @@ MonoBehaviour:
     m_PersistentCalls:
       m_Calls: []
   _onServerFinishedSceneChange:
+    m_PersistentCalls:
+      m_Calls: []
+  _onPlayerSceneReady:
     m_PersistentCalls:
       m_Calls: []
 --- !u!114 &1928412145

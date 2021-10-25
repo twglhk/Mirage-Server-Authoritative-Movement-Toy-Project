@@ -9,7 +9,17 @@ namespace WardGames.John.AuthoritativeMovement.Motors
 {
     public class Motor : NetworkBehaviour
     {
-        #region Serialized
+        #region Types.
+        /// <summary>
+        /// Inputs which can be stored.
+        /// </summary>
+        private class InputData
+        {
+            public bool Jump = false;
+        }
+        #endregion
+
+        #region Serialized.
         /// <summary>
         /// Move rate for the rigidbody.
         /// </summary>
@@ -18,7 +28,7 @@ namespace WardGames.John.AuthoritativeMovement.Motors
         private float _moveRate = 3f;
         #endregion
 
-        #region Private
+        #region Private.
         /// <summary>
         /// Rigidbody on this object
         /// </summary>
@@ -38,9 +48,14 @@ namespace WardGames.John.AuthoritativeMovement.Motors
         /// Most current moto state received from the Server.
         /// </summary>
         private ServerMotorState? _receivedServerMototState = null;
+
+        /// <summary>
+        /// Inputs stored from Update.
+        /// </summary>
+        private InputData _storedInputs = new InputData();
         #endregion
 
-        #region Const
+        #region Const.
         /// <summary>
         /// Maximum number of entries that may be held within ReceivedClientMotorStates.
         /// </summary>
@@ -66,6 +81,11 @@ namespace WardGames.John.AuthoritativeMovement.Motors
         private void OnDisable()
         {
             FixedUpdateManager.OnFixedUpdate -= FixedUpdateManager_OnFixedUpdate;
+        }
+
+        private void Update()
+        {
+            CheckJump();
         }
 
         /// <summary>
@@ -127,6 +147,18 @@ namespace WardGames.John.AuthoritativeMovement.Motors
         }
 
         /// <summary>
+        /// Checks if jump is pressed.
+        /// </summary>
+        [Client]
+        private void CheckJump()
+        {
+            if (Input.GetKeyDown(KeyCode.Space))
+            {
+                _storedInputs.Jump = true;
+            }
+        }
+
+        /// <summary>
         /// Processes the last received server motor state.
         /// </summary>
         [Client]
@@ -142,7 +174,7 @@ namespace WardGames.John.AuthoritativeMovement.Motors
             // Remove entries which have been handled by the server
             int index = _clientMotorStates.FindIndex(x => x.FixedFrame == serverState.FixedFrame);
             if (index != -1)
-                _clientMotorStates.RemoveRange(0, index + 1);
+                _clientMotorStates.RemoveRange(0, index);
 
             // Snap motor to server values.
             transform.position = serverState.Position;
@@ -231,6 +263,10 @@ namespace WardGames.John.AuthoritativeMovement.Motors
 
             Vector3 forces = new Vector3(motorState.Horizontal, 0f, motorState.Forward) * _moveRate;
             _rigidbody.AddForce(forces, ForceMode.Acceleration);
+
+            Vector3 impulses = Vector3.zero;
+            //if ((ActionCodes)motorState.ActionCodes == ActionCodes.Jump)
+            //    impulses += (Vector3.up)
         }
 
         /// <summary>
@@ -242,12 +278,20 @@ namespace WardGames.John.AuthoritativeMovement.Motors
             float horizontal = Input.GetAxisRaw("Horizontal");
             float forward = Input.GetAxisRaw("Vertical");
 
+            /* Action Codes. */
+            ActionCodes ac = ActionCodes.None;
+            if (_storedInputs.Jump)
+            {
+                _storedInputs.Jump = false;
+                ac |= ActionCodes.Jump;
+            }
+
             ClientMotorState state = new ClientMotorState
             {
                 FixedFrame = FixedUpdateManager.FixedFrame,
                 Horizontal = horizontal,
                 Forward = forward,
-                ActionCodes = 0
+                ActionCodes = (byte)ac
             };
             _clientMotorStates.Add(state);
 
