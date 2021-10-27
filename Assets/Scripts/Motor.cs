@@ -26,6 +26,9 @@ namespace WardGames.John.AuthoritativeMovement.Motors
         [Tooltip("Move rate for the rigidbody.")]
         [SerializeField]
         private float _moveRate = 3f;
+        [Tooltip("How much force to apply as impulse when jump")]
+        [SerializeField]
+        private float _jumpImpulse = 8f;
         #endregion
 
         #region Private.
@@ -85,7 +88,10 @@ namespace WardGames.John.AuthoritativeMovement.Motors
 
         private void Update()
         {
-            CheckJump();
+            if (HasAuthority)
+            {
+                CheckJump();
+            }
         }
 
         /// <summary>
@@ -265,8 +271,9 @@ namespace WardGames.John.AuthoritativeMovement.Motors
             _rigidbody.AddForce(forces, ForceMode.Acceleration);
 
             Vector3 impulses = Vector3.zero;
-            //if ((ActionCodes)motorState.ActionCodes == ActionCodes.Jump)
-            //    impulses += (Vector3.up)
+            if ((ActionCodes)motorState.ActionCodes == ActionCodes.Jump)
+                impulses += (Vector3.up * _jumpImpulse);
+            _rigidbody.AddForce(impulses, ForceMode.Impulse);
         }
 
         /// <summary>
