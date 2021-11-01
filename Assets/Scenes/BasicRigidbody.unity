@@ -836,6 +836,7 @@ MonoBehaviour:
   NetworkSceneManager: {fileID: 1928412144}
   spawnPrefabs:
   - {fileID: 3673287081212262989, guid: 4af02dfa47b619144a875d3cd7082471, type: 3}
+  - {fileID: 3707909060601516989, guid: 525b61585896b45429636846f2603ea0, type: 3}
 --- !u!114 &1928412147
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -853,7 +854,7 @@ MonoBehaviour:
   SceneManager: {fileID: 1928412144}
   ClientObjectManager: {fileID: 1928412145}
   ServerObjectManager: {fileID: 1928412143}
-  PlayerPrefab: {fileID: 3673287081212262989, guid: 4af02dfa47b619144a875d3cd7082471, type: 3}
+  PlayerPrefab: {fileID: 3707909060601516989, guid: 525b61585896b45429636846f2603ea0, type: 3}
   AutoSpawn: 1
   startPositionIndex: 0
   startPositions: []
