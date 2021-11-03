@@ -116,7 +116,7 @@ namespace WardGames.John.AuthoritativeMovement.Manager
         private void UpdateTicks()
         {
             _updateTicks += Time.deltaTime;
-            Debug.Log(AdjustedFixedDeltaTime);
+            //Debug.Log(AdjustedFixedDeltaTime);
 
             while (_updateTicks >= AdjustedFixedDeltaTime) // Update timing catches FixedUpdate timing
             {
