@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Events;
 using Mirage;
 using Mirage.Serialization;
 using WardGames.John.AuthoritativeMovement;
@@ -14,16 +15,15 @@ public class TestNetworkMover : NetworkBehaviour
     private Queue _myLogQueue = new Queue();
     private float _lastRecvTime = 0f;
 
-    public struct MoveInfo
-    {
-        public Direction Direction;
-        public Vector3 CurrentPosition;
-        public uint InputNumber;
-    }
+    public UnityEvent OnClientDeserialize = new UnityEvent();
 
-    public void AddMoveInfo(MoveInfo moveInfo)
+    [System.Serializable]
+    public class MoveInfo
     {
-        _moveInfoList.Add(moveInfo);
+        public uint InputNumber;
+        public Direction Direction;
+        public Vector3 MovedPosition;
+        public bool isValid;
     }
 
     private void OnEnable()
@@ -31,21 +31,30 @@ public class TestNetworkMover : NetworkBehaviour
         Application.logMessageReceived += HandleLog;
     }
 
+    public void AddMoveInfo(MoveInfo moveInfo)
+    {
+        _moveInfoList.Add(moveInfo);
+    }
+    
     private void HandleLog(string logString, string stackTrace, LogType type)
     {
         _myLog = logString;
-        //string newString = "\n [" + type + "] : " + _myLog;
-        //_myLogQueue.Enqueue(newString);
-        //if (type == LogType.Exception)
-        //{
-        //    newString = "\n" + stackTrace;
-        //    _myLogQueue.Enqueue(newString);
-        //}
-        //_myLog = string.Empty;
-        //foreach (string mylog in _myLogQueue)
-        //{
-        //    _myLog += mylog;
-        //}
+        string newString = "\n [" + type + "] : " + _myLog;
+
+        if (_myLogQueue.Count > 10)
+            _myLogQueue.Clear();
+
+        _myLogQueue.Enqueue(newString);
+        if (type == LogType.Exception)
+        {
+            newString = "\n" + stackTrace;
+            _myLogQueue.Enqueue(newString);
+        }
+        _myLog = string.Empty;
+        foreach (string mylog in _myLogQueue)
+        {
+            _myLog += mylog;
+        }
     }
 
     // Update is called once per frame
@@ -67,13 +76,13 @@ public class TestNetworkMover : NetworkBehaviour
         var inputDirection = ProcessInput();
         if (!inputDirection.Equals(Direction.NONE))
         {
+            transform.position = Move(transform.position, inputDirection);
             var moveInfo = new MoveInfo()
             {
                 Direction = inputDirection,
-                CurrentPosition = transform.position,
+                MovedPosition = transform.position,
                 InputNumber = ++_currentInputNumber
             };
-            transform.position = Move(transform.position, inputDirection);
             AddMoveInfo(moveInfo);
             ServerRpcMove(moveInfo);
         }
@@ -103,7 +112,7 @@ public class TestNetworkMover : NetworkBehaviour
                 goal += new Vector3(0f, 0f, 1f) * Speed * Time.fixedDeltaTime;
                 break;
             case Direction.Down:
-                goal += new Vector3(0f, 0f, -1f) * Speed * Time.fixedDeltaTime; ;
+                goal += new Vector3(0f, 0f, -1f) * Speed * Time.fixedDeltaTime;
                 break;
         }
         return goal;
@@ -111,15 +120,7 @@ public class TestNetworkMover : NetworkBehaviour
 
     private void UpdateServer()
     {
-        //ClientRpcTestPing();
         SetDirtyBit(_moveInfoList.Count != 0 ? 1UL : 0UL);
-    }
-
-    [ClientRpc]
-    private void ClientRpcTestPing()
-    {
-        Debug.Log($"[Client] ClientRpc Ping : {Time.time - _lastRecvTime}");
-        _lastRecvTime = Time.time;
     }
 
     [ServerRpc]
@@ -133,44 +134,48 @@ public class TestNetworkMover : NetworkBehaviour
         if (!IsServer) return;
         if (_moveInfoList.Count.Equals(0)) return;
 
-        var lastInputNumber = _moveInfoList[_moveInfoList.Count - 1].InputNumber;
+        Vector3 start = transform.position;
+        Vector3 goal = transform.position;
         foreach (var moveInfo in _moveInfoList)
         {
-            // TODO: 이 이동이 유효한지 체크
-            transform.position = Move(transform.position, moveInfo.Direction);
+            if (Random.Range(1, 10) <= 2)
+            {
+                Debug.Log($"[Server] Move Block : {moveInfo.InputNumber}");
+                moveInfo.isValid = false;
+            }
+            else
+            {
+                goal = Move(goal, moveInfo.Direction);
+                moveInfo.isValid = true;
+            }
         }
-
-        writer.WriteUInt32(lastInputNumber);
+        transform.position = goal;
+        writer.WriteVector3(start);
+        writer.WriteList(_moveInfoList);
         _moveInfoList.Clear();
+        
     }
 
     private void ClientMoveSimulation(NetworkReader reader)
     {
         if (!IsClient) return;
         if (_moveInfoList.Count.Equals(0)) return;
-       
+
         // TODO : 여기서 해야할 것은 처리된 인풋의 제거 + 현재 클라이언트가 저장하고 있는 인풋을 사용할 수 없게 되었을 때
         // 큐를 비우는 작업.
 
-        int removeRangeIndex = -1; 
-        var serverSimulatedInputNumber = reader.ReadUInt32();
-        //Debug.Log($"servrSimulatedTimeStamp - {servrSimulatedTimeStamp}");
-        foreach(var moveInfo in _moveInfoList)
+        var startPos = reader.ReadVector3();
+        var serverReconciliatedMoveInfoList = reader.ReadList<MoveInfo>();
+        if (serverReconciliatedMoveInfoList.Count.Equals(0)) return;
+        Vector3 goal = startPos;
+        for (int i = 0; i < serverReconciliatedMoveInfoList.Count; ++i)
         {
-            if (moveInfo.InputNumber <= serverSimulatedInputNumber)
-            {
-                //Debug.Log($"To delete moveInfo.TimeStamp - {moveInfo.TimeStamp}");
-                removeRangeIndex++;
-            }
-            else
-                break;
+            if (serverReconciliatedMoveInfoList[i].isValid)
+                goal = Move(goal, serverReconciliatedMoveInfoList[i].Direction);
         }
-        _moveInfoList.RemoveRange(0, removeRangeIndex);
 
-        //foreach (var moveInfo in _moveInfoList)
-        //{
-        //    transform.position = moveInfo.CurrentPosition;
-        //}
+        transform.position = goal;
+        _moveInfoList.RemoveRange(0, serverReconciliatedMoveInfoList.Count);
     }
 
     public override bool OnSerialize(NetworkWriter writer, bool initialState)
