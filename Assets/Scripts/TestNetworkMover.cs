@@ -8,12 +8,16 @@ using WardGames.John.AuthoritativeMovement;
 
 public class TestNetworkMover : NetworkBehaviour
 {
+    #region Private.
     public float Speed = 5f;
     private uint _currentInputNumber = 0;
     private List<MoveInfo> _moveInfoList = new List<MoveInfo>();
     private string _myLog;
     private Queue _myLogQueue = new Queue();
     private float _lastRecvTime = 0f;
+    private Vector3 _simulatedPos;
+    private Vector3 _renderingPos;
+    #endregion
 
     public UnityEvent OnClientDeserialize = new UnityEvent();
 
@@ -24,6 +28,17 @@ public class TestNetworkMover : NetworkBehaviour
         public Direction Direction;
         public Vector3 MovedPosition;
         public bool isValid;
+    }
+
+    private void Awake()
+    {
+        Identity.OnStartClient.AddListener(OnStartClient);
+    }
+
+    private void OnStartClient()
+    {
+        _renderingPos = transform.position;
+        _simulatedPos = transform.position;
     }
 
     private void OnEnable()
@@ -76,7 +91,8 @@ public class TestNetworkMover : NetworkBehaviour
         var inputDirection = ProcessInput();
         if (!inputDirection.Equals(Direction.NONE))
         {
-            transform.position = Move(transform.position, inputDirection);
+            //transform.position = Move(transform.position, inputDirection);
+            _renderingPos = Move(_renderingPos, inputDirection);
             var moveInfo = new MoveInfo()
             {
                 Direction = inputDirection,
@@ -86,6 +102,9 @@ public class TestNetworkMover : NetworkBehaviour
             AddMoveInfo(moveInfo);
             ServerRpcMove(moveInfo);
         }
+
+        transform.position = _renderingPos
+            = Vector3.MoveTowards(_renderingPos, _simulatedPos, 0.01f);
     }
 
     private Direction ProcessInput()
@@ -174,7 +193,7 @@ public class TestNetworkMover : NetworkBehaviour
                 goal = Move(goal, serverReconciliatedMoveInfoList[i].Direction);
         }
 
-        transform.position = goal;
+        _simulatedPos = goal;
         _moveInfoList.RemoveRange(0, serverReconciliatedMoveInfoList.Count);
     }
 
