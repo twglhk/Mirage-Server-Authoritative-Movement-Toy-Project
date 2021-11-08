@@ -88,6 +88,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   syncMode: 0
   syncInterval: 0.1
+  _interpolateSpeed: 2
   Speed: 5
   OnClientDeserialize:
     m_PersistentCalls:

@@ -8,6 +8,11 @@ using WardGames.John.AuthoritativeMovement;
 
 public class TestNetworkMover : NetworkBehaviour
 {
+    #region Serialized.
+    [Range(1f, 10f)]
+    [SerializeField] private float _interpolateSpeed;
+    #endregion
+
     #region Private.
     public float Speed = 5f;
     private uint _currentInputNumber = 0;
@@ -17,6 +22,13 @@ public class TestNetworkMover : NetworkBehaviour
     private float _lastRecvTime = 0f;
     private Vector3 _simulatedPos;
     private Vector3 _renderingPos;
+    
+    [SyncVar]
+    private bool _isBlocked = false;
+    #endregion
+
+    #region Const.
+    private const float MAX_MOVEINFO_COUNT = 20;
     #endregion
 
     public UnityEvent OnClientDeserialize = new UnityEvent();
@@ -26,7 +38,7 @@ public class TestNetworkMover : NetworkBehaviour
     {
         public uint InputNumber;
         public Direction Direction;
-        public Vector3 MovedPosition;
+        public Vector3 CurrentPos;
         public bool isValid;
     }
 
@@ -82,6 +94,7 @@ public class TestNetworkMover : NetworkBehaviour
 
         if (HasAuthority)
         {
+            ProcessReceivedServerMoveInfo();
             UpdateClient();
         }
     }
@@ -89,22 +102,34 @@ public class TestNetworkMover : NetworkBehaviour
     private void UpdateClient()
     {
         var inputDirection = ProcessInput();
-        if (!inputDirection.Equals(Direction.NONE))
+        if (!inputDirection.Equals(Direction.NONE) && !_isBlocked)
         {
             //transform.position = Move(transform.position, inputDirection);
-            _renderingPos = Move(_renderingPos, inputDirection);
             var moveInfo = new MoveInfo()
             {
                 Direction = inputDirection,
-                MovedPosition = transform.position,
+                CurrentPos = transform.position,
                 InputNumber = ++_currentInputNumber
             };
             AddMoveInfo(moveInfo);
             ServerRpcMove(moveInfo);
-        }
 
-        transform.position = _renderingPos
-            = Vector3.MoveTowards(_renderingPos, _simulatedPos, 0.01f);
+            _renderingPos = Move(transform.position, inputDirection);
+        }
+        transform.position = _renderingPos = Vector3.MoveTowards(_renderingPos, _simulatedPos, Time.deltaTime * _interpolateSpeed);
+    }
+
+    private void ProcessReceivedServerMoveInfo()
+    {
+        if (_moveInfoList.Count == 0)
+            return;
+
+        Vector3 goal = _moveInfoList[0].CurrentPos;
+        foreach (var moveInfo in _moveInfoList)
+        {
+            goal = Move(goal, moveInfo.Direction);
+        }
+        _simulatedPos = goal;
     }
 
     private Direction ProcessInput()
@@ -146,6 +171,8 @@ public class TestNetworkMover : NetworkBehaviour
     private void ServerRpcMove(MoveInfo moveInfo)
     {
         _moveInfoList.Add(moveInfo);
+        if (_moveInfoList.Count > MAX_MOVEINFO_COUNT)
+            _moveInfoList.RemoveAt(0);
     }
 
     private void ServerMoveSimulation(NetworkWriter writer)
@@ -153,28 +180,39 @@ public class TestNetworkMover : NetworkBehaviour
         if (!IsServer) return;
         if (_moveInfoList.Count.Equals(0)) return;
 
-        Vector3 start = transform.position;
+        //var moveInfo = _moveInfoList[0];
+        //_moveInfoList.RemoveAt(0);
         Vector3 goal = transform.position;
-        foreach (var moveInfo in _moveInfoList)
+        int count = _moveInfoList.Count;
+        uint lastInputNumber = _moveInfoList[count - 1].InputNumber;
+        foreach(var moveInfo in _moveInfoList)
         {
-            if (Random.Range(1, 10) <= 2)
-            {
-                Debug.Log($"[Server] Move Block : {moveInfo.InputNumber}");
-                moveInfo.isValid = false;
-            }
-            else
-            {
-                goal = Move(goal, moveInfo.Direction);
-                moveInfo.isValid = true;
-            }
+            goal = Move(goal, moveInfo.Direction);
         }
+        _moveInfoList.RemoveRange(0, count);
+
+        //if (Random.Range(1, 20) <= 1)
+        //{
+        //    Debug.Log($"[Server] Move Block : {moveInfo.InputNumber}");
+        //    _isBlocked = true;
+        //    Invoke(nameof(ServerResetMoveBlock), 1f);
+        //}
+        //else
+        //{
+        //    goal = Move(start, moveInfo.Direction);
+        //}
+
         transform.position = goal;
-        writer.WriteVector3(start);
-        writer.WriteList(_moveInfoList);
-        _moveInfoList.Clear();
-        
+        writer.WriteUInt32(lastInputNumber);
+        writer.WriteVector3(goal);
     }
 
+    private void ServerResetMoveBlock()
+    {
+        _isBlocked = false;
+    }
+
+    [Client]
     private void ClientMoveSimulation(NetworkReader reader)
     {
         if (!IsClient) return;
@@ -183,18 +221,25 @@ public class TestNetworkMover : NetworkBehaviour
         // TODO : 여기서 해야할 것은 처리된 인풋의 제거 + 현재 클라이언트가 저장하고 있는 인풋을 사용할 수 없게 되었을 때
         // 큐를 비우는 작업.
 
-        var startPos = reader.ReadVector3();
-        var serverReconciliatedMoveInfoList = reader.ReadList<MoveInfo>();
-        if (serverReconciliatedMoveInfoList.Count.Equals(0)) return;
-        Vector3 goal = startPos;
-        for (int i = 0; i < serverReconciliatedMoveInfoList.Count; ++i)
-        {
-            if (serverReconciliatedMoveInfoList[i].isValid)
-                goal = Move(goal, serverReconciliatedMoveInfoList[i].Direction);
-        }
+        var lastInputNumber = reader.ReadUInt32();
+        var simulatedPos = reader.ReadVector3();
+        //var startPos = reader.ReadVector3();
+        //var serverReconciliatedMoveInfoList = reader.ReadList<MoveInfo>();
+        //if (serverReconciliatedMoveInfoList.Count.Equals(0)) return;
+        //Vector3 goal = startPos;
+        //for (int i = 0; i < serverReconciliatedMoveInfoList.Count; ++i)
+        //{
+        //    if (serverReconciliatedMoveInfoList[i].isValid)
+        //        goal = Move(goal, serverReconciliatedMoveInfoList[i].Direction);
+        //}
 
-        _simulatedPos = goal;
-        _moveInfoList.RemoveRange(0, serverReconciliatedMoveInfoList.Count);
+        int inputIndex = _moveInfoList.FindIndex((x) => lastInputNumber == x.InputNumber);
+
+        if (inputIndex != -1)
+            _moveInfoList.RemoveRange(0, inputIndex + 1);   
+
+        //int index = _moveInfoList.FindIndex(x => x.InputNumber <= )
+        //_moveInfoList.RemoveRange(0, serverReconciliatedMoveInfoList.Count);
     }
 
     public override bool OnSerialize(NetworkWriter writer, bool initialState)
