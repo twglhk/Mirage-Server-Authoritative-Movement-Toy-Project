@@ -272,6 +272,8 @@ public class TestNetworkMover : NetworkBehaviour
 
     public override bool OnSerialize(NetworkWriter writer, bool initialState)
     {
+        if (initialState) return false;
+
         // 서버에서만 호출
         //Debug.Log($"{gameObject.name} OnSerialize");
         //Debug.Log($"[Server] OnSerialize Ping : {Time.time - _lastRecvTime}");
@@ -282,6 +284,17 @@ public class TestNetworkMover : NetworkBehaviour
 
     public override void OnDeserialize(NetworkReader reader, bool initialState)
     {
+        if (initialState) return;
+
+        if (!HasAuthority)
+        {
+            Debug.Log("It is not mine");
+            reader.ReadUInt32();
+            reader.ReadVector3();
+            return;
+        }
+            
+
         // 클라에서만 호출
         //Debug.Log($"{gameObject.name} OnDeserialize");
         //Debug.Log($"[Client] OnDeserialize Ping : {Time.time - _lastRecvTime}");
