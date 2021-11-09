@@ -902,7 +902,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 9b91ecbcc199f4492b9a91e820070131, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  sceneId: 593072717
+  SpawnSettings:
+    SendPosition: 1
+    SendRotation: 1
+    SendScale: 1
+  _sceneId: 593072717
   ServerObjectManager: {fileID: 1928412143}
   ClientObjectManager: {fileID: 1928412145}
   _prefabHash: 0

@@ -11,6 +11,7 @@ GameObject:
   - component: {fileID: 3707909060601516986}
   - component: {fileID: 3707909060601516989}
   - component: {fileID: 2002981350819106341}
+  - component: {fileID: 6286628618433082391}
   m_Layer: 0
   m_Name: Server Authoritative Player
   m_TagString: Untagged
@@ -45,10 +46,14 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 9b91ecbcc199f4492b9a91e820070131, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  sceneId: 0
+  SpawnSettings:
+    SendPosition: 1
+    SendRotation: 1
+    SendScale: 1
+  _sceneId: 0
   ServerObjectManager: {fileID: 0}
   ClientObjectManager: {fileID: 0}
-  _prefabHash: 23
+  _prefabHash: -266517928
   _onStartServer:
     _event:
       m_PersistentCalls:
@@ -93,6 +98,23 @@ MonoBehaviour:
   OnClientDeserialize:
     m_PersistentCalls:
       m_Calls: []
+--- !u!114 &6286628618433082391
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3707909060601516987}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f30ad95d37834ce409e393c2cd23558a, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  syncMode: 0
+  syncInterval: 0.1
+  LocalPositionSensitivity: 0.01
+  LocalRotationSensitivity: 0.01
+  LocalScaleSensitivity: 0.01
 --- !u!1 &4752487556740869606
 GameObject:
   m_ObjectHideFlags: 0
